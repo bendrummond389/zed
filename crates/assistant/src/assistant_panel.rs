@@ -1,5 +1,5 @@
 use crate::{
-    assistant_settings::{AiModelTrait, AssistantDockPosition, AssistantSettings, OpenAiModel},
+    assistant_settings::{AiModel, AiModelTrait, AssistantDockPosition, AssistantSettings},
     codegen::{self, Codegen, CodegenKind},
     prompts::generate_content_prompt,
     Assist, CycleMessageRole, InlineAssist, MessageId, MessageMetadata, MessageStatus,
@@ -126,7 +126,7 @@ impl AssistantPanel {
                 let settings = AssistantSettings::get_global(cx);
                 (
                     settings.openai_api_url.clone(),
-                    settings.default_open_ai_model.full_name().to_string(),
+                    settings.default_ai_model.full_name().to_string(),
                 )
             })?;
             let completion_provider = OpenAiCompletionProvider::new(
@@ -690,9 +690,8 @@ impl AssistantPanel {
             Task::ready(Ok(Vec::new()))
         };
 
-        let mut model = AssistantSettings::get_global(cx)
-            .default_open_ai_model
-            .clone();
+        let mut model = AssistantSettings::get_global(cx).default_ai_model.clone();
+
         let model_name = model.full_name();
 
         let prompt = cx.background_executor().spawn(async move {
@@ -1416,7 +1415,7 @@ struct Conversation {
     pending_summary: Task<Option<()>>,
     completion_count: usize,
     pending_completions: Vec<PendingCompletion>,
-    model: OpenAiModel,
+    model: AiModel,
     api_url: Option<String>,
     token_count: Option<usize>,
     max_token_count: usize,
@@ -1451,7 +1450,7 @@ impl Conversation {
         });
 
         let settings = AssistantSettings::get_global(cx);
-        let model = settings.default_open_ai_model.clone();
+        let model = settings.default_ai_model.clone();
         let api_url = settings.openai_api_url.clone();
 
         let mut this = Self {
@@ -1664,7 +1663,7 @@ impl Conversation {
         Some(self.max_token_count as isize - self.token_count? as isize)
     }
 
-    fn set_model(&mut self, model: OpenAiModel, cx: &mut ModelContext<Self>) {
+    fn set_model(&mut self, model: AiModel, cx: &mut ModelContext<Self>) {
         self.model = model;
         self.count_remaining_tokens(cx);
         cx.notify();
@@ -3651,9 +3650,7 @@ fn report_assistant_event(
     let client = workspace.read(cx).project().read(cx).client();
     let telemetry = client.telemetry();
 
-    let model = AssistantSettings::get_global(cx)
-        .default_open_ai_model
-        .clone();
+    let model = AssistantSettings::get_global(cx).default_ai_model.clone();
 
     telemetry.report_assistant_event(conversation_id, assistant_kind, model.full_name())
 }

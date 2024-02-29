@@ -7,9 +7,36 @@ use settings::Settings;
 pub trait AiModelTrait {
     fn full_name(&self) -> &'static str;
     fn short_name(&self) -> &'static str;
-    fn cycle(&self) -> Self
-    where
-        Self: Sized;
+    fn cycle(&self) -> Self;
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub enum AiModel {
+    OpenAI(OpenAiModel),
+    Ollama(OllamaModel),
+}
+
+impl AiModelTrait for AiModel {
+    fn full_name(&self) -> &'static str {
+        match self {
+            AiModel::OpenAI(model) => model.full_name(),
+            AiModel::Ollama(model) => model.full_name(),
+        }
+    }
+
+    fn short_name(&self) -> &'static str {
+        match self {
+            AiModel::OpenAI(model) => model.short_name(),
+            AiModel::Ollama(model) => model.short_name(),
+        }
+    }
+
+    fn cycle(&self) -> Self {
+        match self {
+            AiModel::OpenAI(model) => AiModel::OpenAI(model.cycle()),
+            AiModel::Ollama(model) => AiModel::Ollama(model.cycle()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -88,8 +115,7 @@ pub struct AssistantSettings {
     pub dock: AssistantDockPosition,
     pub default_width: Pixels,
     pub default_height: Pixels,
-    pub default_open_ai_model: OpenAiModel,
-    pub default_ollama_model: OllamaModel,
+    pub default_ai_model: AiModel,
     pub openai_api_url: String,
 }
 
@@ -115,14 +141,10 @@ pub struct AssistantSettingsContent {
     /// The default OpenAI model to use when starting new conversations.
     ///
     /// Default: gpt-4-1106-preview
-    pub default_open_ai_model: Option<OpenAiModel>,
+    pub default_ai_model: Option<AiModel>,
     /// The default Ollama model to use when starting new conversations.
     ///
     /// Default: codellama:7b
-    pub default_ollama_model: Option<OllamaModel>,
-    /// OpenAI API base URL to use when starting new conversations.
-    ///
-    /// Default: https://api.openai.com/v1
     pub openai_api_url: Option<String>,
     /// Ollama API base URL to use when starting new conversations.
     ///
