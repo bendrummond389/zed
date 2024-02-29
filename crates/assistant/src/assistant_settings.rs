@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use settings::Settings;
 
-trait Model {
+pub trait AiModelTrait {
     fn full_name(&self) -> &'static str;
     fn short_name(&self) -> &'static str;
     fn cycle(&self) -> Self
@@ -23,12 +23,12 @@ pub enum OpenAiModel {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub enum LlamaModel {
+pub enum OllamaModel {
     #[serde(rename = "codellama:7b")]
     CodeLlamaSevenBillion,
 }
 
-impl Model for OpenAiModel {
+impl AiModelTrait for OpenAiModel {
     fn full_name(&self) -> &'static str {
         match self {
             OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo-0613",
@@ -54,6 +54,26 @@ impl Model for OpenAiModel {
     }
 }
 
+impl AiModelTrait for OllamaModel {
+    fn full_name(&self) -> &'static str {
+        match self {
+            OllamaModel::CodeLlamaSevenBillion => "codellama:7b",
+        }
+    }
+
+    fn short_name(&self) -> &'static str {
+        match self {
+            OllamaModel::CodeLlamaSevenBillion => "codellama",
+        }
+    }
+
+    fn cycle(&self) -> Self {
+        match self {
+            OllamaModel::CodeLlamaSevenBillion => OllamaModel::CodeLlamaSevenBillion,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssistantDockPosition {
@@ -69,6 +89,7 @@ pub struct AssistantSettings {
     pub default_width: Pixels,
     pub default_height: Pixels,
     pub default_open_ai_model: OpenAiModel,
+    pub default_ollama_model: OllamaModel,
     pub openai_api_url: String,
 }
 
@@ -95,10 +116,18 @@ pub struct AssistantSettingsContent {
     ///
     /// Default: gpt-4-1106-preview
     pub default_open_ai_model: Option<OpenAiModel>,
+    /// The default Ollama model to use when starting new conversations.
+    ///
+    /// Default: codellama:7b
+    pub default_ollama_model: Option<OllamaModel>,
     /// OpenAI API base URL to use when starting new conversations.
     ///
     /// Default: https://api.openai.com/v1
     pub openai_api_url: Option<String>,
+    /// Ollama API base URL to use when starting new conversations.
+    ///
+    /// Default: http://localhost:11434/v1
+    pub ollama_api_url: Option<String>,
 }
 
 impl Settings for AssistantSettings {

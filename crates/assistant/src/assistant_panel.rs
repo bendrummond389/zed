@@ -1,5 +1,5 @@
 use crate::{
-    assistant_settings::{AssistantDockPosition, AssistantSettings, OpenAiModel},
+    assistant_settings::{AiModelTrait, AssistantDockPosition, AssistantSettings, OpenAiModel},
     codegen::{self, Codegen, CodegenKind},
     prompts::generate_content_prompt,
     Assist, CycleMessageRole, InlineAssist, MessageId, MessageMetadata, MessageStatus,
