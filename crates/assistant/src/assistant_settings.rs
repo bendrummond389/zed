@@ -4,6 +4,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use settings::Settings;
 
+trait Model {
+    fn full_name(&self) -> &'static str;
+    fn short_name(&self) -> &'static str;
+    fn cycle(&self) -> Self
+    where
+        Self: Sized;
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub enum OpenAiModel {
     #[serde(rename = "gpt-3.5-turbo-0613")]
@@ -12,35 +20,36 @@ pub enum OpenAiModel {
     Four,
     #[serde(rename = "gpt-4-1106-preview")]
     FourTurbo,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub enum LlamaModel {
     #[serde(rename = "codellama:7b")]
     CodeLlamaSevenBillion,
 }
 
-impl OpenAiModel {
-    pub fn full_name(&self) -> &'static str {
+impl Model for OpenAiModel {
+    fn full_name(&self) -> &'static str {
         match self {
             OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo-0613",
             OpenAiModel::Four => "gpt-4-0613",
             OpenAiModel::FourTurbo => "gpt-4-1106-preview",
-            OpenAiModel::CodeLlamaSevenBillion => "codellama:7b",
         }
     }
 
-    pub fn short_name(&self) -> &'static str {
+    fn short_name(&self) -> &'static str {
         match self {
             OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo",
             OpenAiModel::Four => "gpt-4",
             OpenAiModel::FourTurbo => "gpt-4-turbo",
-            OpenAiModel::CodeLlamaSevenBillion => "codellama",
         }
     }
 
-    pub fn cycle(&self) -> Self {
+    fn cycle(&self) -> Self {
         match self {
             OpenAiModel::ThreePointFiveTurbo => OpenAiModel::Four,
             OpenAiModel::Four => OpenAiModel::FourTurbo,
-            OpenAiModel::FourTurbo => OpenAiModel::CodeLlamaSevenBillion,
-            OpenAiModel::CodeLlamaSevenBillion => OpenAiModel::ThreePointFiveTurbo,
+            OpenAiModel::FourTurbo => OpenAiModel::ThreePointFiveTurbo,
         }
     }
 }
