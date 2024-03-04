@@ -1,18 +1,21 @@
 use crate::{
-    assistant_settings::{AiModel, AiModelTrait, AssistantDockPosition, AssistantSettings},
+    assistant_settings::{
+        AiModel, AiModelTrait, AiProvider, AssistantDockPosition, AssistantSettings,
+    },
     codegen::{self, Codegen, CodegenKind},
     prompts::generate_content_prompt,
     Assist, CycleMessageRole, InlineAssist, MessageId, MessageMetadata, MessageStatus,
     NewConversation, QuoteSelection, ResetKey, Role, SavedConversation, SavedConversationMetadata,
     SavedMessage, Split, ToggleFocus, ToggleIncludeConversation, ToggleRetrieveContext,
 };
-use ai::prompts::repository_context::PromptCodeSnippet;
 use ai::providers::open_ai::OPEN_AI_API_URL;
 use ai::{
     auth::ProviderCredential,
     completion::{CompletionProvider, CompletionRequest},
+    providers::ollama::OllamaCompletionProvider,
     providers::open_ai::{OpenAiCompletionProvider, OpenAiRequest, RequestMessage},
 };
+use ai::{prompts::repository_context::PromptCodeSnippet, providers::ollama::OLLAMA_API_URL};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
 use collections::{hash_map, HashMap, HashSet, VecDeque};
@@ -36,6 +39,7 @@ use gpui::{
     View, ViewContext, VisualContext, WeakModel, WeakView, WhiteSpace, WindowContext,
 };
 use language::{language_settings::SoftWrap, Buffer, BufferId, LanguageRegistry, ToOffset as _};
+use log::debug;
 use project::Project;
 use search::{buffer_search::DivRegistrar, BufferSearchBar};
 use semantic_index::{SemanticIndex, SemanticIndexStatus};
@@ -122,19 +126,35 @@ impl AssistantPanel {
                 .await
                 .log_err()
                 .unwrap_or_default();
-            let (api_url, model_name) = cx.update(|cx| {
+
+            let executor = cx.background_executor().clone();
+
+            let (api_url, model_name, model) = cx.update(|cx| {
                 let settings = AssistantSettings::get_global(cx);
-                (
-                    settings.openai_api_url.clone(),
-                    settings.default_ai_model.full_name().to_string(),
-                )
+
+                match settings.default_ai_model {
+                    AiModel::OpenAI(_) => (
+                        settings.open_ai_api_url.clone(),
+                        settings.default_ai_model.full_name().to_string(),
+                        settings.default_ai_model.clone(),
+                    ),
+                    AiModel::Ollama(_) => (
+                        settings.ollama_api_url.clone(),
+                        settings.default_ai_model.full_name().to_string(),
+                        settings.default_ai_model.clone(),
+                    ),
+                }
             })?;
-            let completion_provider = OpenAiCompletionProvider::new(
-                api_url,
-                model_name,
-                cx.background_executor().clone(),
-            )
-            .await;
+            let completion_provider = match model {
+                AiModel::OpenAI(_) => {
+                    Arc::new(OpenAiCompletionProvider::new(api_url, model_name, executor).await)
+                        as Arc<dyn CompletionProvider>
+                }
+                AiModel::Ollama(_) => {
+                    Arc::new(OllamaCompletionProvider::new(api_url, model_name, executor).await)
+                        as Arc<dyn CompletionProvider>
+                }
+            };
 
             // TODO: deserialize state.
             let workspace_handle = workspace.clone();
@@ -183,7 +203,7 @@ impl AssistantPanel {
                         zoomed: false,
                         focus_handle,
                         toolbar,
-                        completion_provider: Arc::new(completion_provider),
+                        completion_provider,
                         api_key_editor: None,
                         languages: workspace.app_state().languages.clone(),
                         fs: workspace.app_state().fs.clone(),
@@ -737,6 +757,8 @@ impl AssistantPanel {
                 stop: vec!["|END|>".to_string()],
                 temperature,
             });
+
+            debug!("{:?}", request);
 
             codegen.update(&mut cx, |codegen, cx| codegen.start(request, cx))?;
             anyhow::Ok(())
@@ -1415,6 +1437,7 @@ struct Conversation {
     pending_summary: Task<Option<()>>,
     completion_count: usize,
     pending_completions: Vec<PendingCompletion>,
+    provider: AiProvider,
     model: AiModel,
     api_url: Option<String>,
     token_count: Option<usize>,
@@ -1450,8 +1473,9 @@ impl Conversation {
         });
 
         let settings = AssistantSettings::get_global(cx);
-        let model = settings.default_ai_model.clone();
-        let api_url = settings.openai_api_url.clone();
+        let provider = settings.default_provider.clone();
+        let model = provider.default_model();
+        let api_url = settings.open_ai_api_url.clone();
 
         let mut this = Self {
             id: Some(Uuid::new_v4().to_string()),
@@ -1466,6 +1490,7 @@ impl Conversation {
             max_token_count: tiktoken_rs::model::get_context_size(&model.full_name()),
             pending_token_count: Task::ready(None),
             api_url: Some(api_url),
+            provider: provider.clone(),
             model: model.clone(),
             _subscriptions: vec![cx.subscribe(&buffer, Self::handle_buffer_event)],
             pending_save: Task::ready(Ok(())),
@@ -1510,6 +1535,7 @@ impl Conversation {
                 .as_ref()
                 .map(|summary| summary.text.clone())
                 .unwrap_or_default(),
+            provider: self.provider.clone(),
             model: self.model.clone(),
             api_url: self.api_url.clone(),
         }
@@ -1525,18 +1551,32 @@ impl Conversation {
             Some(id) => Some(id),
             None => Some(Uuid::new_v4().to_string()),
         };
+        let provider = saved_conversation.provider;
         let model = saved_conversation.model;
         let api_url = saved_conversation.api_url;
-        let completion_provider: Arc<dyn CompletionProvider> = Arc::new(
-            OpenAiCompletionProvider::new(
-                api_url
-                    .clone()
-                    .unwrap_or_else(|| OPEN_AI_API_URL.to_string()),
-                model.full_name().into(),
-                cx.background_executor().clone(),
-            )
-            .await,
-        );
+        let completion_provider = match model {
+            AiModel::OpenAI(_) => Arc::new(
+                OpenAiCompletionProvider::new(
+                    api_url
+                        .clone()
+                        .unwrap_or_else(|| OPEN_AI_API_URL.to_string()),
+                    model.full_name().into(),
+                    cx.background_executor().clone(),
+                )
+                .await,
+            ) as Arc<dyn CompletionProvider>,
+            AiModel::Ollama(_) => Arc::new(
+                OllamaCompletionProvider::new(
+                    api_url
+                        .clone()
+                        .unwrap_or_else(|| OLLAMA_API_URL.to_string()),
+                    model.full_name().into(),
+                    cx.background_executor().clone(),
+                )
+                .await,
+            ) as Arc<dyn CompletionProvider>,
+        };
+
         cx.update(|cx| completion_provider.retrieve_credentials(cx))?
             .await;
 
@@ -1568,6 +1608,14 @@ impl Conversation {
             buffer
         })?;
 
+        let max_token_count = match provider {
+            AiProvider::OpenAI => tiktoken_rs::model::get_context_size(&model.full_name()),
+            AiProvider::Ollama => {
+                // The ollama tokenizer is unavailable
+                30_000 // Example default
+            }
+        };
+
         cx.new_model(|cx| {
             let mut this = Self {
                 id,
@@ -1582,9 +1630,10 @@ impl Conversation {
                 completion_count: Default::default(),
                 pending_completions: Default::default(),
                 token_count: None,
-                max_token_count: tiktoken_rs::model::get_context_size(&model.full_name()),
+                max_token_count,
                 pending_token_count: Task::ready(None),
                 api_url,
+                provider,
                 model,
                 _subscriptions: vec![cx.subscribe(&buffer, Self::handle_buffer_event)],
                 pending_save: Task::ready(Ok(())),
@@ -1635,28 +1684,36 @@ impl Conversation {
             })
             .collect::<Vec<_>>();
         let model = self.model.clone();
-        self.pending_token_count = cx.spawn(|this, mut cx| {
-            async move {
-                cx.background_executor()
-                    .timer(Duration::from_millis(200))
-                    .await;
-                let token_count = cx
-                    .background_executor()
-                    .spawn(async move {
-                        tiktoken_rs::num_tokens_from_messages(&model.full_name(), &messages)
-                    })
-                    .await?;
 
-                this.update(&mut cx, |this, cx| {
-                    this.max_token_count =
-                        tiktoken_rs::model::get_context_size(&this.model.full_name());
-                    this.token_count = Some(token_count);
-                    cx.notify()
-                })?;
-                anyhow::Ok(())
+        match &model {
+            AiModel::OpenAI(_) => {
+                self.pending_token_count = cx.spawn(|this, mut cx| {
+                    async move {
+                        cx.background_executor()
+                            .timer(Duration::from_millis(200))
+                            .await;
+                        let token_count = cx
+                            .background_executor()
+                            .spawn(async move {
+                                tiktoken_rs::num_tokens_from_messages(&model.full_name(), &messages)
+                            })
+                            .await?;
+
+                        this.update(&mut cx, |this, cx| {
+                            this.max_token_count =
+                                tiktoken_rs::model::get_context_size(&this.model.full_name());
+                            this.token_count = Some(token_count);
+                            cx.notify()
+                        })?;
+                        anyhow::Ok(())
+                    }
+                    .log_err()
+                });
             }
-            .log_err()
-        });
+            AiModel::Ollama(_) => {
+                log::warn!("Token counting for Ollama models is not supported.");
+            }
+        }
     }
 
     fn remaining_tokens(&self) -> Option<isize> {
@@ -1666,6 +1723,11 @@ impl Conversation {
     fn set_model(&mut self, model: AiModel, cx: &mut ModelContext<Self>) {
         self.model = model;
         self.count_remaining_tokens(cx);
+        cx.notify();
+    }
+
+    fn set_provider(&mut self, provider: AiProvider, cx: &mut ModelContext<Self>) {
+        self.provider = provider;
         cx.notify();
     }
 
@@ -2257,6 +2319,7 @@ impl ConversationEditor {
                 .collect();
             conversation.assist(selected_messages, cx)
         });
+
         let new_selections = user_messages
             .iter()
             .map(|message| {
@@ -2597,6 +2660,15 @@ impl ConversationEditor {
         });
     }
 
+    fn cycle_provider(&mut self, cx: &mut ViewContext<Self>) {
+        self.conversation.update(cx, |conversation, cx| {
+            let new_provider = conversation.provider.cycle();
+            let new_model = new_provider.default_model();
+            conversation.set_provider(new_provider, cx);
+            conversation.set_model(new_model, cx);
+        })
+    }
+
     fn title(&self, cx: &AppContext) -> String {
         self.conversation
             .read(cx)
@@ -2616,16 +2688,33 @@ impl ConversationEditor {
         .on_click(cx.listener(|this, _, cx| this.cycle_model(cx)))
     }
 
+    fn render_current_provider(&self, cx: &mut ViewContext<Self>) -> impl IntoElement {
+        Button::new(
+            "current provider",
+            self.conversation.read(cx).provider.name(),
+        )
+        .style(ButtonStyle::Filled)
+        .tooltip(move |cx| Tooltip::text("Change Provider", cx))
+        .on_click(cx.listener(|this, _, cx| this.cycle_provider(cx)))
+    }
+
     fn render_remaining_tokens(&self, cx: &mut ViewContext<Self>) -> Option<impl IntoElement> {
-        let remaining_tokens = self.conversation.read(cx).remaining_tokens()?;
-        let remaining_tokens_color = if remaining_tokens <= 0 {
-            Color::Error
-        } else if remaining_tokens <= 500 {
-            Color::Warning
-        } else {
-            Color::Default
-        };
-        Some(Label::new(remaining_tokens.to_string()).color(remaining_tokens_color))
+        let model = &self.conversation.read(cx).model;
+
+        match model {
+            AiModel::OpenAI(_) => {
+                let remaining_tokens = self.conversation.read(cx).remaining_tokens()?;
+                let remaining_tokens_color = if remaining_tokens <= 0 {
+                    Color::Error
+                } else if remaining_tokens <= 500 {
+                    Color::Warning
+                } else {
+                    Color::Default
+                };
+                Some(Label::new(remaining_tokens.to_string()).color(remaining_tokens_color))
+            }
+            AiModel::Ollama(_) => None,
+        }
     }
 }
 
@@ -2656,6 +2745,7 @@ impl Render for ConversationEditor {
                     .gap_1()
                     .top_3()
                     .right_5()
+                    .child(self.render_current_provider(cx))
                     .child(self.render_current_model(cx))
                     .children(self.render_remaining_tokens(cx)),
             )
