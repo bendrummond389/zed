@@ -89,6 +89,8 @@ pub enum OpenAiModel {
 pub enum OllamaModel {
     #[serde(rename = "codellama:7b")]
     CodeLlamaSevenBillion,
+    #[serde(rename = "codellama:13b")]
+    CodeLlamaThirteenBillion,
 }
 
 impl AiModelTrait for OpenAiModel {
@@ -121,18 +123,21 @@ impl AiModelTrait for OllamaModel {
     fn full_name(&self) -> &'static str {
         match self {
             OllamaModel::CodeLlamaSevenBillion => "codellama:7b",
+            OllamaModel::CodeLlamaThirteenBillion => "codellama:13b",
         }
     }
 
     fn short_name(&self) -> &'static str {
         match self {
-            OllamaModel::CodeLlamaSevenBillion => "codellama",
+            OllamaModel::CodeLlamaSevenBillion => "codellama-7",
+            OllamaModel::CodeLlamaThirteenBillion => "codellama-13",
         }
     }
 
     fn cycle(&self) -> Self {
         match self {
-            OllamaModel::CodeLlamaSevenBillion => OllamaModel::CodeLlamaSevenBillion,
+            OllamaModel::CodeLlamaSevenBillion => OllamaModel::CodeLlamaThirteenBillion,
+            OllamaModel::CodeLlamaThirteenBillion => OllamaModel::CodeLlamaSevenBillion,
         }
     }
 }
