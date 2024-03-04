@@ -1,4 +1,7 @@
+use crate::models::AiModelTrait;
 use anyhow::anyhow;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use tiktoken_rs::CoreBPE;
 
 use crate::models::{LanguageModel, TruncationDirection};
@@ -11,6 +14,16 @@ pub struct OpenAiLanguageModel {
     bpe: Option<CoreBPE>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub enum OpenAiModel {
+    #[serde(rename = "gpt-3.5-turbo-0613")]
+    ThreePointFiveTurbo,
+    #[serde(rename = "gpt-4-0613")]
+    Four,
+    #[serde(rename = "gpt-4-1106-preview")]
+    FourTurbo,
+}
+
 impl OpenAiLanguageModel {
     pub fn load(model_name: &str) -> Self {
         let bpe =
@@ -18,6 +31,32 @@ impl OpenAiLanguageModel {
         OpenAiLanguageModel {
             name: model_name.to_string(),
             bpe: Some(bpe),
+        }
+    }
+}
+
+impl AiModelTrait for OpenAiModel {
+    fn full_name(&self) -> &'static str {
+        match self {
+            OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo-0613",
+            OpenAiModel::Four => "gpt-4-0613",
+            OpenAiModel::FourTurbo => "gpt-4-1106-preview",
+        }
+    }
+
+    fn short_name(&self) -> &'static str {
+        match self {
+            OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo",
+            OpenAiModel::Four => "gpt-4",
+            OpenAiModel::FourTurbo => "gpt-4-turbo",
+        }
+    }
+
+    fn cycle(&self) -> Self {
+        match self {
+            OpenAiModel::ThreePointFiveTurbo => OpenAiModel::Four,
+            OpenAiModel::Four => OpenAiModel::FourTurbo,
+            OpenAiModel::FourTurbo => OpenAiModel::ThreePointFiveTurbo,
         }
     }
 }

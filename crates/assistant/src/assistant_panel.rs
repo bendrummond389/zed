@@ -1,7 +1,5 @@
 use crate::{
-    assistant_settings::{
-        AiModel, AiModelTrait, AiProvider, AssistantDockPosition, AssistantSettings,
-    },
+    assistant_settings::{AiProvider, AssistantDockPosition, AssistantSettings},
     codegen::{self, Codegen, CodegenKind},
     prompts::generate_content_prompt,
     Assist, CycleMessageRole, InlineAssist, MessageId, MessageMetadata, MessageStatus,
@@ -12,6 +10,7 @@ use ai::providers::open_ai::OPEN_AI_API_URL;
 use ai::{
     auth::ProviderCredential,
     completion::{CompletionProvider, CompletionRequest},
+    models::{AiModel, AiModelTrait},
     providers::ollama::OllamaCompletionProvider,
     providers::open_ai::{OpenAiCompletionProvider, OpenAiRequest, RequestMessage},
 };

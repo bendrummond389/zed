@@ -1,10 +1,44 @@
+use crate::models::AiModelTrait;
 use crate::models::{LanguageModel, TruncationDirection};
 use anyhow::anyhow;
 use lazy_static::lazy_static;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use tiktoken_rs::{cl100k_base, CoreBPE};
 
 lazy_static! {
     pub(crate) static ref OLLAMA_BPE_TOKENIZER: CoreBPE = cl100k_base().unwrap();
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub enum OllamaModel {
+    #[serde(rename = "codellama:7b")]
+    CodeLlamaSevenBillion,
+    #[serde(rename = "codellama:13b")]
+    CodeLlamaThirteenBillion,
+}
+
+impl AiModelTrait for OllamaModel {
+    fn full_name(&self) -> &'static str {
+        match self {
+            OllamaModel::CodeLlamaSevenBillion => "codellama:7b",
+            OllamaModel::CodeLlamaThirteenBillion => "codellama:13b",
+        }
+    }
+
+    fn short_name(&self) -> &'static str {
+        match self {
+            OllamaModel::CodeLlamaSevenBillion => "codellama-7",
+            OllamaModel::CodeLlamaThirteenBillion => "codellama-13",
+        }
+    }
+
+    fn cycle(&self) -> Self {
+        match self {
+            OllamaModel::CodeLlamaSevenBillion => OllamaModel::CodeLlamaThirteenBillion,
+            OllamaModel::CodeLlamaThirteenBillion => OllamaModel::CodeLlamaSevenBillion,
+        }
+    }
 }
 
 #[derive(Clone)]

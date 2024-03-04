@@ -1,14 +1,15 @@
+use ai::{
+    models::AiModel,
+    providers::{
+        ollama::{model::OllamaModel, OLLAMA_API_URL},
+        open_ai::{model::OpenAiModel, OPEN_AI_API_URL},
+    },
+};
 use anyhow;
 use gpui::Pixels;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use settings::Settings;
-
-pub trait AiModelTrait {
-    fn full_name(&self) -> &'static str;
-    fn short_name(&self) -> &'static str;
-    fn cycle(&self) -> Self;
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub enum AiProvider {
@@ -40,104 +41,8 @@ impl AiProvider {
 
     pub fn api_url(&self) -> &'static str {
         match self {
-            AiProvider::OpenAI => "https://api.openai.com/v1",
-            AiProvider::Ollama => "http://localhost:11434/v1",
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub enum AiModel {
-    OpenAI(OpenAiModel),
-    Ollama(OllamaModel),
-}
-
-impl AiModelTrait for AiModel {
-    fn full_name(&self) -> &'static str {
-        match self {
-            AiModel::OpenAI(model) => model.full_name(),
-            AiModel::Ollama(model) => model.full_name(),
-        }
-    }
-
-    fn short_name(&self) -> &'static str {
-        match self {
-            AiModel::OpenAI(model) => model.short_name(),
-            AiModel::Ollama(model) => model.short_name(),
-        }
-    }
-
-    fn cycle(&self) -> Self {
-        match self {
-            AiModel::OpenAI(model) => AiModel::OpenAI(model.cycle()),
-            AiModel::Ollama(model) => AiModel::Ollama(model.cycle()),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub enum OpenAiModel {
-    #[serde(rename = "gpt-3.5-turbo-0613")]
-    ThreePointFiveTurbo,
-    #[serde(rename = "gpt-4-0613")]
-    Four,
-    #[serde(rename = "gpt-4-1106-preview")]
-    FourTurbo,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub enum OllamaModel {
-    #[serde(rename = "codellama:7b")]
-    CodeLlamaSevenBillion,
-    #[serde(rename = "codellama:13b")]
-    CodeLlamaThirteenBillion,
-}
-
-impl AiModelTrait for OpenAiModel {
-    fn full_name(&self) -> &'static str {
-        match self {
-            OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo-0613",
-            OpenAiModel::Four => "gpt-4-0613",
-            OpenAiModel::FourTurbo => "gpt-4-1106-preview",
-        }
-    }
-
-    fn short_name(&self) -> &'static str {
-        match self {
-            OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo",
-            OpenAiModel::Four => "gpt-4",
-            OpenAiModel::FourTurbo => "gpt-4-turbo",
-        }
-    }
-
-    fn cycle(&self) -> Self {
-        match self {
-            OpenAiModel::ThreePointFiveTurbo => OpenAiModel::Four,
-            OpenAiModel::Four => OpenAiModel::FourTurbo,
-            OpenAiModel::FourTurbo => OpenAiModel::ThreePointFiveTurbo,
-        }
-    }
-}
-
-impl AiModelTrait for OllamaModel {
-    fn full_name(&self) -> &'static str {
-        match self {
-            OllamaModel::CodeLlamaSevenBillion => "codellama:7b",
-            OllamaModel::CodeLlamaThirteenBillion => "codellama:13b",
-        }
-    }
-
-    fn short_name(&self) -> &'static str {
-        match self {
-            OllamaModel::CodeLlamaSevenBillion => "codellama-7",
-            OllamaModel::CodeLlamaThirteenBillion => "codellama-13",
-        }
-    }
-
-    fn cycle(&self) -> Self {
-        match self {
-            OllamaModel::CodeLlamaSevenBillion => OllamaModel::CodeLlamaThirteenBillion,
-            OllamaModel::CodeLlamaThirteenBillion => OllamaModel::CodeLlamaSevenBillion,
+            AiProvider::OpenAI => OPEN_AI_API_URL,
+            AiProvider::Ollama => OLLAMA_API_URL,
         }
     }
 }

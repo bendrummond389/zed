@@ -96,6 +96,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "rusqlite",
+ "schemars",
  "serde",
  "serde_json",
  "tiktoken-rs",

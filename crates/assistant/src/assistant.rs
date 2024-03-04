@@ -4,10 +4,11 @@ mod codegen;
 mod prompts;
 mod streaming_diff;
 
+use ai::models::AiModel;
 use ai::providers::open_ai::Role;
 use anyhow::Result;
 pub use assistant_panel::AssistantPanel;
-use assistant_settings::{AiModel, AiProvider};
+use assistant_settings::AiProvider;
 use chrono::{DateTime, Local};
 use collections::HashMap;
 use fs::Fs;
