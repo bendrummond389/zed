@@ -1,4 +1,4 @@
-use crate::models::AiModelTrait;
+use crate::models::AiModel;
 use anyhow::anyhow;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,7 @@ impl OpenAiLanguageModel {
     }
 }
 
-impl AiModelTrait for OpenAiModel {
+impl AiModel for OpenAiModel {
     fn full_name(&self) -> &'static str {
         match self {
             OpenAiModel::ThreePointFiveTurbo => "gpt-3.5-turbo-0613",

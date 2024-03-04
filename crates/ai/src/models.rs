@@ -9,36 +9,36 @@ pub enum TruncationDirection {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub enum AiModel {
+pub enum AiModelVariant {
     OpenAI(OpenAiModel),
     Ollama(OllamaModel),
 }
 
-pub trait AiModelTrait {
+pub trait AiModel {
     fn full_name(&self) -> &'static str;
     fn short_name(&self) -> &'static str;
     fn cycle(&self) -> Self;
 }
 
-impl AiModelTrait for AiModel {
+impl AiModel for AiModelVariant {
     fn full_name(&self) -> &'static str {
         match self {
-            AiModel::OpenAI(model) => model.full_name(),
-            AiModel::Ollama(model) => model.full_name(),
+            AiModelVariant::OpenAI(model) => model.full_name(),
+            AiModelVariant::Ollama(model) => model.full_name(),
         }
     }
 
     fn short_name(&self) -> &'static str {
         match self {
-            AiModel::OpenAI(model) => model.short_name(),
-            AiModel::Ollama(model) => model.short_name(),
+            AiModelVariant::OpenAI(model) => model.short_name(),
+            AiModelVariant::Ollama(model) => model.short_name(),
         }
     }
 
     fn cycle(&self) -> Self {
         match self {
-            AiModel::OpenAI(model) => AiModel::OpenAI(model.cycle()),
-            AiModel::Ollama(model) => AiModel::Ollama(model.cycle()),
+            AiModelVariant::OpenAI(model) => AiModelVariant::OpenAI(model.cycle()),
+            AiModelVariant::Ollama(model) => AiModelVariant::Ollama(model.cycle()),
         }
     }
 }

@@ -10,7 +10,7 @@ use ai::providers::open_ai::OPEN_AI_API_URL;
 use ai::{
     auth::ProviderCredential,
     completion::{CompletionProvider, CompletionRequest},
-    models::{AiModel, AiModelTrait},
+    models::{AiModel, AiModelVariant},
     providers::ollama::OllamaCompletionProvider,
     providers::open_ai::{OpenAiCompletionProvider, OpenAiRequest, RequestMessage},
 };
@@ -132,12 +132,12 @@ impl AssistantPanel {
                 let settings = AssistantSettings::get_global(cx);
 
                 match settings.default_ai_model {
-                    AiModel::OpenAI(_) => (
+                    AiModelVariant::OpenAI(_) => (
                         settings.open_ai_api_url.clone(),
                         settings.default_ai_model.full_name().to_string(),
                         settings.default_ai_model.clone(),
                     ),
-                    AiModel::Ollama(_) => (
+                    AiModelVariant::Ollama(_) => (
                         settings.ollama_api_url.clone(),
                         settings.default_ai_model.full_name().to_string(),
                         settings.default_ai_model.clone(),
@@ -145,11 +145,11 @@ impl AssistantPanel {
                 }
             })?;
             let completion_provider = match model {
-                AiModel::OpenAI(_) => {
+                AiModelVariant::OpenAI(_) => {
                     Arc::new(OpenAiCompletionProvider::new(api_url, model_name, executor).await)
                         as Arc<dyn CompletionProvider>
                 }
-                AiModel::Ollama(_) => {
+                AiModelVariant::Ollama(_) => {
                     Arc::new(OllamaCompletionProvider::new(api_url, model_name, executor).await)
                         as Arc<dyn CompletionProvider>
                 }
@@ -1437,7 +1437,7 @@ struct Conversation {
     completion_count: usize,
     pending_completions: Vec<PendingCompletion>,
     provider: AiProvider,
-    model: AiModel,
+    model: AiModelVariant,
     api_url: Option<String>,
     token_count: Option<usize>,
     max_token_count: usize,
@@ -1554,7 +1554,7 @@ impl Conversation {
         let model = saved_conversation.model;
         let api_url = saved_conversation.api_url;
         let completion_provider = match model {
-            AiModel::OpenAI(_) => Arc::new(
+            AiModelVariant::OpenAI(_) => Arc::new(
                 OpenAiCompletionProvider::new(
                     api_url
                         .clone()
@@ -1564,7 +1564,7 @@ impl Conversation {
                 )
                 .await,
             ) as Arc<dyn CompletionProvider>,
-            AiModel::Ollama(_) => Arc::new(
+            AiModelVariant::Ollama(_) => Arc::new(
                 OllamaCompletionProvider::new(
                     api_url
                         .clone()
@@ -1685,7 +1685,7 @@ impl Conversation {
         let model = self.model.clone();
 
         match &model {
-            AiModel::OpenAI(_) => {
+            AiModelVariant::OpenAI(_) => {
                 self.pending_token_count = cx.spawn(|this, mut cx| {
                     async move {
                         cx.background_executor()
@@ -1709,7 +1709,7 @@ impl Conversation {
                     .log_err()
                 });
             }
-            AiModel::Ollama(_) => {
+            AiModelVariant::Ollama(_) => {
                 log::warn!("Token counting for Ollama models is not supported.");
             }
         }
@@ -1719,7 +1719,7 @@ impl Conversation {
         Some(self.max_token_count as isize - self.token_count? as isize)
     }
 
-    fn set_model(&mut self, model: AiModel, cx: &mut ModelContext<Self>) {
+    fn set_model(&mut self, model: AiModelVariant, cx: &mut ModelContext<Self>) {
         self.model = model;
         self.count_remaining_tokens(cx);
         cx.notify();
@@ -2701,7 +2701,7 @@ impl ConversationEditor {
         let model = &self.conversation.read(cx).model;
 
         match model {
-            AiModel::OpenAI(_) => {
+            AiModelVariant::OpenAI(_) => {
                 let remaining_tokens = self.conversation.read(cx).remaining_tokens()?;
                 let remaining_tokens_color = if remaining_tokens <= 0 {
                     Color::Error
@@ -2712,7 +2712,7 @@ impl ConversationEditor {
                 };
                 Some(Label::new(remaining_tokens.to_string()).color(remaining_tokens_color))
             }
-            AiModel::Ollama(_) => None,
+            AiModelVariant::Ollama(_) => None,
         }
     }
 }

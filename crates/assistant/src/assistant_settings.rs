@@ -1,5 +1,5 @@
 use ai::{
-    models::AiModel,
+    models::AiModelVariant,
     providers::{
         ollama::{model::OllamaModel, OLLAMA_API_URL},
         open_ai::{model::OpenAiModel, OPEN_AI_API_URL},
@@ -32,10 +32,10 @@ impl AiProvider {
         }
     }
 
-    pub fn default_model(&self) -> AiModel {
+    pub fn default_model(&self) -> AiModelVariant {
         match self {
-            AiProvider::OpenAI => AiModel::OpenAI(OpenAiModel::ThreePointFiveTurbo),
-            AiProvider::Ollama => AiModel::Ollama(OllamaModel::CodeLlamaSevenBillion),
+            AiProvider::OpenAI => AiModelVariant::OpenAI(OpenAiModel::ThreePointFiveTurbo),
+            AiProvider::Ollama => AiModelVariant::Ollama(OllamaModel::CodeLlamaSevenBillion),
         }
     }
 
@@ -61,7 +61,7 @@ pub struct AssistantSettings {
     pub dock: AssistantDockPosition,
     pub default_width: Pixels,
     pub default_height: Pixels,
-    pub default_ai_model: AiModel,
+    pub default_ai_model: AiModelVariant,
     pub open_ai_api_url: String,
     pub ollama_api_url: String,
     pub default_provider: AiProvider,
@@ -89,7 +89,7 @@ pub struct AssistantSettingsContent {
     /// The default AI model to use when starting new conversations.
     ///
     /// Default: gpt-4-1106-preview
-    pub default_ai_model: Option<AiModel>,
+    pub default_ai_model: Option<AiModelVariant>,
     /// OpenAi API base URL to use when starting new conversations.
     ///
     /// Default: http://localhost:11434/v1

@@ -4,8 +4,8 @@ mod codegen;
 mod prompts;
 mod streaming_diff;
 
-use ai::models::AiModel;
-use ai::providers::open_ai::Role;
+use ai::completion::Role;
+use ai::models::AiModelVariant;
 use anyhow::Result;
 pub use assistant_panel::AssistantPanel;
 use assistant_settings::AiProvider;
@@ -71,7 +71,7 @@ struct SavedConversation {
     summary: String,
     api_url: Option<String>,
     provider: AiProvider,
-    model: AiModel,
+    model: AiModelVariant,
 }
 
 impl SavedConversation {

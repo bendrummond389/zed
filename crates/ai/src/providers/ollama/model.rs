@@ -1,4 +1,4 @@
-use crate::models::AiModelTrait;
+use crate::models::AiModel;
 use crate::models::{LanguageModel, TruncationDirection};
 use anyhow::anyhow;
 use lazy_static::lazy_static;
@@ -18,7 +18,7 @@ pub enum OllamaModel {
     CodeLlamaThirteenBillion,
 }
 
-impl AiModelTrait for OllamaModel {
+impl AiModel for OllamaModel {
     fn full_name(&self) -> &'static str {
         match self {
             OllamaModel::CodeLlamaSevenBillion => "codellama:7b",

@@ -7,49 +7,16 @@ use gpui::{AppContext, BackgroundExecutor};
 use isahc::{http::StatusCode, Request, RequestExt};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::{
-    env,
-    fmt::{self, Display},
-    io,
-    sync::Arc,
-};
+use std::{env, io, sync::Arc};
 use util::ResultExt;
 
 use crate::{
     auth::{CredentialProvider, ProviderCredential},
-    completion::{CompletionProvider, CompletionRequest},
+    completion::{CompletionProvider, CompletionRequest, Role},
     models::LanguageModel,
 };
 
 use crate::providers::open_ai::{OpenAiLanguageModel, OPEN_AI_API_URL};
-
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum Role {
-    User,
-    Assistant,
-    System,
-}
-
-impl Role {
-    pub fn cycle(&mut self) {
-        *self = match self {
-            Role::User => Role::Assistant,
-            Role::Assistant => Role::System,
-            Role::System => Role::User,
-        }
-    }
-}
-
-impl Display for Role {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Role::User => write!(f, "User"),
-            Role::Assistant => write!(f, "Assistant"),
-            Role::System => write!(f, "System"),
-        }
-    }
-}
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct RequestMessage {
