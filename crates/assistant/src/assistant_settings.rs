@@ -92,7 +92,7 @@ pub struct AssistantSettingsContent {
     pub default_ai_model: Option<AiModelVariant>,
     /// OpenAi API base URL to use when starting new conversations.
     ///
-    /// Default: http://localhost:11434/v1
+    /// Default: https://api.openai.com/v1
     pub open_ai_api_url: Option<String>,
     /// Ollama API base URL to use when starting new conversations.
     ///

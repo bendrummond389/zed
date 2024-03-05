@@ -24,17 +24,6 @@ pub enum OpenAiModel {
     FourTurbo,
 }
 
-impl OpenAiLanguageModel {
-    pub fn load(model_name: &str) -> Self {
-        let bpe =
-            tiktoken_rs::get_bpe_from_model(model_name).unwrap_or(OPEN_AI_BPE_TOKENIZER.to_owned());
-        OpenAiLanguageModel {
-            name: model_name.to_string(),
-            bpe: Some(bpe),
-        }
-    }
-}
-
 impl AiModel for OpenAiModel {
     fn full_name(&self) -> &'static str {
         match self {
@@ -57,6 +46,17 @@ impl AiModel for OpenAiModel {
             OpenAiModel::ThreePointFiveTurbo => OpenAiModel::Four,
             OpenAiModel::Four => OpenAiModel::FourTurbo,
             OpenAiModel::FourTurbo => OpenAiModel::ThreePointFiveTurbo,
+        }
+    }
+}
+
+impl OpenAiLanguageModel {
+    pub fn load(model_name: &str) -> Self {
+        let bpe =
+            tiktoken_rs::get_bpe_from_model(model_name).unwrap_or(OPEN_AI_BPE_TOKENIZER.to_owned());
+        OpenAiLanguageModel {
+            name: model_name.to_string(),
+            bpe: Some(bpe),
         }
     }
 }
