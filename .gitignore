@@ -22,3 +22,4 @@ DerivedData/
 .pytest_cache
 .venv
 .blob_store
+notes.txt

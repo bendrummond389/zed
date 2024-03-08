@@ -142,7 +142,7 @@ impl EmbeddingProvider for FakeEmbeddingProvider {
         anyhow::Ok(spans.iter().map(|span| self.embed_sync(span)).collect())
     }
 }
-
+#[derive(Debug)]
 pub struct FakeCompletionProvider {
     last_completion_tx: Mutex<Option<mpsc::Sender<String>>>,
 }

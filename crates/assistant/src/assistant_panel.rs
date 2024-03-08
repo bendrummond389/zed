@@ -32,13 +32,12 @@ use futures::StreamExt;
 use gpui::{
     canvas, div, point, relative, rems, uniform_list, Action, AnyElement, AppContext,
     AsyncAppContext, AsyncWindowContext, AvailableSpace, ClipboardItem, Context, EventEmitter,
-    FocusHandle, FocusableView, FontStyle, FontWeight, HighlightStyle, InteractiveElement,
+    FocusHandle, FocusableView, FontStyle, FontWeight, Global, HighlightStyle, InteractiveElement,
     IntoElement, Model, ModelContext, ParentElement, Pixels, PromptLevel, Render, SharedString,
     StatefulInteractiveElement, Styled, Subscription, Task, TextStyle, UniformListScrollHandle,
     View, ViewContext, VisualContext, WeakModel, WeakView, WhiteSpace, WindowContext,
 };
 use language::{language_settings::SoftWrap, Buffer, BufferId, LanguageRegistry, ToOffset as _};
-use log::debug;
 use project::Project;
 use search::{buffer_search::DivRegistrar, BufferSearchBar};
 use semantic_index::{SemanticIndex, SemanticIndexStatus};
@@ -46,12 +45,14 @@ use settings::Settings;
 use std::{
     cell::Cell,
     cmp,
-    fmt::Write,
+    fmt::{Pointer, Write},
+    future::{ready, IntoFuture},
     iter,
-    ops::Range,
+    ops::{Deref, Range},
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
+    thread::spawn,
     time::{Duration, Instant},
 };
 use telemetry_events::AssistantKind;
@@ -824,6 +825,7 @@ impl AssistantPanel {
             )
         });
         self.add_conversation(editor.clone(), cx);
+
         editor
     }
 
@@ -833,7 +835,9 @@ impl AssistantPanel {
 
         let conversation = editor.read(cx).conversation.clone();
         self.subscriptions
-            .push(cx.observe(&conversation, |_, _, cx| cx.notify()));
+            .push(cx.observe(&conversation, |_, _, cx| {
+                cx.notify();
+            }));
 
         let index = self.editors.len();
         self.editors.push(editor);
@@ -868,8 +872,23 @@ impl AssistantPanel {
     ) {
         match event {
             ConversationEditorEvent::TabContentChanged => cx.notify(),
+            ConversationEditorEvent::CompletionProviderChanged => {
+                let cp = self.completion_provider.clone();
+                log::debug!("new model: {:?}", cp.deref().base_model().name());
+                cx.notify();
+            }
         }
     }
+
+    // fn set_completion_provider(
+    //     &mut self,
+    //     completion_provider: Task<Arc<dyn CompletionProvider>>,
+    //     cx: &mut AsyncWindowContext,
+    // ) {
+    //     cx.spawn(|mut cx| async move {
+    //         let cp = completion_provider.await;
+    //     });
+    // }
 
     fn save_credentials(&mut self, _: &menu::Confirm, cx: &mut ViewContext<Self>) {
         if let Some(api_key) = self
@@ -1721,61 +1740,27 @@ impl Conversation {
         Some(self.max_token_count as isize - self.token_count? as isize)
     }
 
-    fn set_provider(&mut self, provider: AiProvider, cx: &mut ModelContext<Self>) {
+    fn set_provider(&mut self, provider: &AiProvider, cx: &mut ModelContext<Self>) {
         self.api_url = Some(provider.api_url().to_string());
-        self.provider = provider;
+        self.provider = provider.clone();
+
+        log::warn!("provider set to {:?}", self.provider.name());
         cx.notify();
     }
 
-    fn set_model(&mut self, model: AiModelVariant, cx: &mut ModelContext<Self>) {
-        self.model = model;
+    fn set_model(&mut self, model: &AiModelVariant, cx: &mut ModelContext<Self>) {
+        self.model = model.clone();
         self.count_remaining_tokens(cx);
         cx.notify();
     }
 
     fn set_completion_provider(
         &mut self,
-        model: AiModelVariant,
-        api_url: String,
+        completion_provider: Arc<dyn CompletionProvider>,
         cx: &mut ModelContext<Self>,
     ) {
-        let _ = cx
-            .spawn(|this, mut cx| {
-                debug!("init");
-
-                async move {
-                    let completion_provider = match model {
-                        AiModelVariant::OpenAI(_) => Arc::new(
-                            OpenAiCompletionProvider::new(
-                                api_url.clone(),
-                                model.full_name().into(),
-                                cx.background_executor().clone(),
-                            )
-                            .await,
-                        )
-                            as Arc<dyn CompletionProvider>,
-                        AiModelVariant::Ollama(_) => Arc::new(
-                            OllamaCompletionProvider::new(
-                                api_url.clone(),
-                                model.full_name().into(),
-                                cx.background_executor().clone(),
-                            )
-                            .await,
-                        )
-                            as Arc<dyn CompletionProvider>,
-                    };
-
-                    debug!("api: {}, model: {}", api_url, model.full_name());
-
-                    this.update(&mut cx, |this, cx| {
-                        this.completion_provider = completion_provider;
-                        cx.notify()
-                    })?;
-                    anyhow::Ok(())
-                }
-                .log_err()
-            })
-            .detach();
+        self.completion_provider = completion_provider;
+        cx.notify();
     }
 
     fn assist(
@@ -2284,6 +2269,7 @@ struct PendingCompletion {
 
 enum ConversationEditorEvent {
     TabContentChanged,
+    CompletionProviderChanged,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -2703,22 +2689,63 @@ impl ConversationEditor {
     fn cycle_model(&mut self, cx: &mut ViewContext<Self>) {
         self.conversation.update(cx, |conversation, cx| {
             let new_model = conversation.model.cycle();
-            conversation.set_model(new_model, cx);
+            conversation.set_model(&new_model, cx);
         });
     }
 
     fn cycle_provider(&mut self, cx: &mut ViewContext<Self>) {
-        self.conversation.update(cx, |conversation, cx| {
+        let conversation = self.conversation.clone();
+        let workspace = self.workspace.clone();
+        let (model, api_url) = conversation.update(cx, |conversation, cx| {
             let new_provider = conversation.provider.cycle();
-            let new_model = new_provider.default_model();
+            let new_model = new_provider.default_model().clone();
             let api_url = new_provider.api_url().to_string();
-            conversation.set_provider(new_provider, cx);
-            conversation.set_model(new_model.clone(), cx);
-            conversation.set_completion_provider(new_model, api_url, cx);
-            if let Some(workspace) = self.workspace.upgrade() {
-                // workspace.
-            }
+            conversation.set_model(&new_model, cx);
+            conversation.set_provider(&new_provider, cx);
+            (new_model, api_url)
+        });
+
+        cx.spawn(|_, mut cx| async move {
+            let executor = cx.background_executor();
+            let completion_provider = match model {
+                AiModelVariant::OpenAI(_) => Arc::new(
+                    OpenAiCompletionProvider::new(
+                        api_url.clone(),
+                        model.full_name().to_string(),
+                        executor.clone(),
+                    )
+                    .await,
+                ) as Arc<dyn CompletionProvider>,
+                AiModelVariant::Ollama(_) => Arc::new(
+                    OllamaCompletionProvider::new(
+                        api_url.clone(),
+                        model.full_name().to_string(),
+                        executor.clone(),
+                    )
+                    .await,
+                ) as Arc<dyn CompletionProvider>,
+            };
+
+            conversation
+                .update(&mut cx, |conversation, cx| {
+                    conversation.set_completion_provider(completion_provider.clone(), cx);
+                })
+                .log_err();
+
+            workspace.update(&mut cx, |this, cx| {
+                let Some(panel) = this.panel::<AssistantPanel>(cx) else {
+                    return;
+                };
+
+                panel.update(cx, |panel, _| {
+                    panel.completion_provider = completion_provider;
+                })
+            })
         })
+        .detach();
+        cx.emit(ConversationEditorEvent::CompletionProviderChanged);
+
+        cx.notify()
     }
 
     fn title(&self, cx: &AppContext) -> String {

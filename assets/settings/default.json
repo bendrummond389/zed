@@ -233,9 +233,9 @@
     // 2. "gpt-4-0613""
     // 3. "gpt-4-1106-preview"
     "default_ai_model": {
-      "OpenAI": "gpt-3.5-turbo-0613"
+      "Ollama": "codellama:7b"
     },
-    "default_provider": "OpenAI"
+    "default_provider": "Ollama"
   },
   // Whether the screen sharing icon is shown in the os status bar.
   "show_call_status_icon": true,
