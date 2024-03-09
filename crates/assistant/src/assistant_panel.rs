@@ -32,7 +32,7 @@ use futures::StreamExt;
 use gpui::{
     canvas, div, point, relative, rems, uniform_list, Action, AnyElement, AppContext,
     AsyncAppContext, AsyncWindowContext, AvailableSpace, ClipboardItem, Context, EventEmitter,
-    FocusHandle, FocusableView, FontStyle, FontWeight, Global, HighlightStyle, InteractiveElement,
+    FocusHandle, FocusableView, FontStyle, FontWeight, HighlightStyle, InteractiveElement,
     IntoElement, Model, ModelContext, ParentElement, Pixels, PromptLevel, Render, SharedString,
     StatefulInteractiveElement, Styled, Subscription, Task, TextStyle, UniformListScrollHandle,
     View, ViewContext, VisualContext, WeakModel, WeakView, WhiteSpace, WindowContext,
@@ -45,14 +45,12 @@ use settings::Settings;
 use std::{
     cell::Cell,
     cmp,
-    fmt::{Pointer, Write},
-    future::{ready, IntoFuture},
+    fmt::Write,
     iter,
     ops::{Deref, Range},
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
-    thread::spawn,
     time::{Duration, Instant},
 };
 use telemetry_events::AssistantKind;
