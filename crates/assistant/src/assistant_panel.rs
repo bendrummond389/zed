@@ -878,16 +878,6 @@ impl AssistantPanel {
         }
     }
 
-    // fn set_completion_provider(
-    //     &mut self,
-    //     completion_provider: Task<Arc<dyn CompletionProvider>>,
-    //     cx: &mut AsyncWindowContext,
-    // ) {
-    //     cx.spawn(|mut cx| async move {
-    //         let cp = completion_provider.await;
-    //     });
-    // }
-
     fn save_credentials(&mut self, _: &menu::Confirm, cx: &mut ViewContext<Self>) {
         if let Some(api_key) = self
             .api_key_editor
